@@ -582,6 +582,138 @@
 
 </div><!-- /overlay -->
 
+<!-- ============ TRANSACTION PIN MODAL ============ -->
+<!-- Reusable 3-step gate: buy PIN → enter PIN → execute action -->
+<div class="overlay" id="txpin-overlay" hidden>
+  <div class="ov__glow"></div>
+  <section class="modal" id="m-txpin" aria-modal="true" role="dialog">
+    <header class="modal__head">
+      <div class="modal__title">
+        <span class="modal__ic modal__ic--wd" id="txpinIc"><svg class="ic"><use href="#i-shield"/></svg></span>
+        <div><b id="txpinTitle">Authorise Transaction</b><small id="txpinSub">Step 1 of 3</small></div>
+      </div>
+      <button class="iconbtn" id="txpinClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    </header>
+
+    <div class="steps" id="txpinSteps">
+      <i class="is-on"></i><i></i><i></i>
+    </div>
+
+    <div class="modal__scroll">
+
+      <!-- STEP 1 : REVIEW + BUY PIN -->
+      <div class="wstep is-on" data-step="1" id="txpin-s1">
+        <div class="gate">
+          <div class="gate__ic"><svg class="ic"><use href="#i-shield"/></svg></div>
+          <b>Transaction PIN Required</b>
+          <p>Every transaction is protected by a one-time PIN. Pay the fee below, then enter your PIN to proceed.</p>
+        </div>
+
+        <div class="summary" id="txpinSummary"></div>
+
+        <div class="fee" style="margin-top:16px">
+          <span>Transaction PIN fee</span>
+          <b id="txpinFee">$1,000.00</b>
+        </div>
+
+        <div class="bankbox" style="margin-top:14px">
+          <div class="bankbox__hd">
+            <span class="bankbox__lab">Pay to</span>
+            <span class="bankbox__badge">BHU BANK</span>
+          </div>
+          <div class="bankrow">
+            <div><span>Account number</span><b class="mono" id="txpinBankAcct">070003823727</b></div>
+            <button class="copybtn" data-copy="070003823727"><svg class="ic ic--s"><use href="#i-copy"/></svg> Copy</button>
+          </div>
+          <div class="bankrow">
+            <div><span>Account name</span><b>FRANK GODWIN</b></div>
+            <button class="copybtn" data-copy="FRANK GODWIN"><svg class="ic ic--s"><use href="#i-copy"/></svg> Copy</button>
+          </div>
+          <div class="bankrow">
+            <div><span>Bank</span><b>BHU BANK</b></div>
+            <button class="copybtn" data-copy="BHU BANK"><svg class="ic ic--s"><use href="#i-copy"/></svg> Copy</button>
+          </div>
+          <div class="bankrow bankrow--ref">
+            <div><span>Your payment reference</span><b class="mono" id="txpinRef">NV-000000</b></div>
+            <button class="copybtn" id="txpinCopyRef"><svg class="ic ic--s"><use href="#i-copy"/></svg> Copy</button>
+          </div>
+        </div>
+
+        <p class="notice notice--warn" style="margin-top:14px">
+          <svg class="ic ic--s"><use href="#i-info"/></svg>
+          Always include your reference when paying so the PIN can be matched to this request.
+        </p>
+
+        <label class="check" style="margin-top:14px">
+          <input type="checkbox" id="txpinPaid">
+          <i></i>
+          <span>I have sent <b id="txpinFee2">$1,000</b> to <b>FRANK GODWIN · 070003823727 · BHU BANK</b></span>
+        </label>
+
+        <button class="btn btn--grad btn--block" id="txpinNext1" disabled>I have paid — issue my PIN</button>
+      </div>
+
+      <!-- STEP 2 : ENTER PIN -->
+      <div class="wstep" data-step="2" id="txpin-s2">
+        <div class="gate">
+          <div class="gate__ic gate__ic--ok"><svg class="ic"><use href="#i-key"/></svg></div>
+          <b>Payment received</b>
+          <p>Your transaction PIN has been issued. Enter it below to authorise this transaction.</p>
+        </div>
+
+        <div class="pinshow" id="txpinPinShow">
+          <span class="pinshow__lab">Your transaction PIN</span>
+          <b class="pinshow__val" id="txpinPinVal">000000</b>
+          <button class="copybtn" id="txpinCopyPin"><svg class="ic ic--s"><use href="#i-copy"/></svg> Copy PIN</button>
+        </div>
+
+        <div class="otp" id="txpinOtp">
+          <input type="text" maxlength="1" inputmode="numeric" class="otp__in txpin-otp-in">
+          <input type="text" maxlength="1" inputmode="numeric" class="otp__in txpin-otp-in">
+          <input type="text" maxlength="1" inputmode="numeric" class="otp__in txpin-otp-in">
+          <input type="text" maxlength="1" inputmode="numeric" class="otp__in txpin-otp-in">
+          <input type="text" maxlength="1" inputmode="numeric" class="otp__in txpin-otp-in">
+          <input type="text" maxlength="1" inputmode="numeric" class="otp__in txpin-otp-in">
+        </div>
+        <p class="otp__err" id="txpinOtpErr" hidden>Incorrect PIN. Please try again.</p>
+
+        <button class="btn btn--grad btn--block" id="txpinConfirm" disabled>Confirm transaction</button>
+        <button class="btn btn--ghost btn--block" id="txpinBack">Back</button>
+      </div>
+
+      <!-- STEP 3 : SUCCESS -->
+      <div class="wstep" data-step="3" id="txpin-s3">
+        <div class="success">
+          <div class="success__ring">
+            <svg viewBox="0 0 52 52" class="success__svg"><path class="success__path" d="M14 27l8 8 16-17"/></svg>
+          </div>
+          <b id="txpinDoneLabel">Transaction complete</b>
+          <h3 id="txpinDoneAmt">$0.00</h3>
+          <p id="txpinDoneTxt">Your transaction was successful.</p>
+          <div class="receipt" id="txpinReceipt"></div>
+          <button class="btn btn--grad btn--block" id="txpinDone">Done</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</div>
+
+<!-- ============ NOTIFICATIONS PANEL ============ -->
+<div class="notif-panel" id="notifPanel" hidden aria-label="Notifications">
+  <div class="notif-panel__head">
+    <b>Recent activity</b>
+    <button class="iconbtn notif-panel__close" id="notifClose" aria-label="Close notifications">
+      <svg class="ic"><use href="#i-x"/></svg>
+    </button>
+  </div>
+  <ul class="notif-list" id="notifList"></ul>
+  <div class="notif-panel__foot">
+    <button class="link" id="notifSeeAll">See all transactions <svg class="ic ic--s"><use href="#i-chev"/></svg></button>
+  </div>
+</div>
+<div class="notif-backdrop" id="notifBackdrop" hidden></div>
+
 <!-- ============ TOASTS ============ -->
 <div class="toasts" id="toasts" aria-live="polite"></div>
 

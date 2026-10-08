@@ -462,58 +462,199 @@ async function wdConfirm(btn) {
    ========================================================== */
 function pushTx(t) { S.tx.unshift(t); save(); }
 
-async function doFund(btn) {
+/* ---------- validation helpers (return error string or null) ---------- */
+function validateFund() {
   const amt = Number(digits($('#fundAmt').value)) || 0;
   if (amt < 100) return toast('Minimum top-up is $100', '', 'warn');
-  btn.classList.add('is-busy'); btn.textContent = 'Crediting…';
-  await wait(1400);
-  btn.classList.remove('is-busy'); btn.textContent = 'Credit my wallet';
-
-  S.balance = Math.round((S.balance + amt) * 100) / 100;
-  pushTx({ id: uid('TX'), type: 'credit', title: 'Wallet funding', note: 'Instant top-up', amount: amt, ref: 'CR' + Math.floor(1e7 + Math.random() * 9e6), ts: Date.now(), status: 'success' });
-  closeModal(); renderAll(true);
-  toast('Wallet funded', `$${money(amt)} added to your balance`, 'ok');
+  return { amt };
 }
-
-async function doSend(btn) {
+function validateSend() {
   const name = $('#sendName').value.trim();
   const bank = $('#sendBank').value.trim();
   const acct = digits($('#sendAcct').value);
-  const amt = Number(digits($('#sendAmt').value)) || 0;
+  const amt  = Number(digits($('#sendAmt').value)) || 0;
   const note = $('#sendNote').value.trim();
-
-  if (name.length < 2) return toast('Recipient name required', '', 'warn');
-  if (bank.length < 2) return toast('Bank required', '', 'warn');
+  if (name.length < 2)  return toast('Recipient name required', '', 'warn');
+  if (bank.length < 2)  return toast('Bank required', '', 'warn');
   if (acct.length < 10) return toast('Invalid account number', 'Enter 10–11 digits', 'warn');
-  if (amt < 50) return toast('Minimum transfer is $50', '', 'warn');
-  if (amt > S.balance) return toast('Insufficient balance', `Available: $${money(S.balance)}`, 'err');
-
-  btn.classList.add('is-busy'); btn.textContent = 'Sending…';
-  await wait(1500);
-  btn.classList.remove('is-busy'); btn.textContent = 'Send now';
-
-  S.balance = Math.round((S.balance - amt) * 100) / 100;
-  pushTx({ id: uid('TX'), type: 'debit', title: 'Sent to ' + name, note: note || (bank + ' · •••• ' + acct.slice(-4)), amount: amt, ref: 'DR' + Math.floor(1e7 + Math.random() * 9e6), ts: Date.now(), status: 'success' });
-  closeModal(); renderAll(true);
-  toast('Transfer successful', `$${money(amt)} sent to ${name}`, 'ok');
+  if (amt < 50)         return toast('Minimum transfer is $50', '', 'warn');
+  if (amt > S.balance)  return toast('Insufficient balance', `Available: $${money(S.balance)}`, 'err');
+  return { name, bank, acct, amt, note };
+}
+function validateAirtime() {
+  const phone = digits($('#airPhone').value);
+  const amt   = Number(digits($('#airAmt').value)) || 0;
+  const net   = ($('#airNet .chip.is-on') || {}).dataset?.net || 'MTN';
+  if (phone.length < 11) return toast('Enter a valid phone number', '', 'warn');
+  if (amt < 50)          return toast('Minimum is $50', '', 'warn');
+  if (amt > S.balance)   return toast('Insufficient balance', '', 'err');
+  return { phone, amt, net };
 }
 
-async function doAirtime(btn) {
-  const phone = digits($('#airPhone').value);
-  const amt = Number(digits($('#airAmt').value)) || 0;
-  const net = ($('#airNet .chip.is-on') || {}).dataset ? $('#airNet .chip.is-on').dataset.net : 'MTN';
-  if (phone.length < 11) return toast('Enter a valid phone number', '', 'warn');
-  if (amt < 50) return toast('Minimum is $50', '', 'warn');
-  if (amt > S.balance) return toast('Insufficient balance', '', 'err');
+/* ---------- entry points: validate → open PIN gate ---------- */
+function doFund() {
+  const v = validateFund();
+  if (!v) return;
+  closeModal();
+  openTxPin({
+    label: 'Fund Wallet',
+    amount: v.amt,
+    summaryHtml: `
+      <div class="summary__row"><span>Action</span><b>Wallet top-up</b></div>
+      <div class="summary__row summary__row--total"><span>Amount to credit</span><b>$${money(v.amt)}</b></div>`,
+    onConfirm: async () => {
+      S.balance = Math.round((S.balance + v.amt) * 100) / 100;
+      pushTx({ id: uid('TX'), type: 'credit', title: 'Wallet funding', note: 'Instant top-up',
+               amount: v.amt, ref: 'CR' + Math.floor(1e7 + Math.random() * 9e6), ts: Date.now(), status: 'success' });
+      renderAll(true);
+      toast('Wallet funded', `$${money(v.amt)} added to your balance`, 'ok');
+      return { doneLabel: 'Wallet Funded', doneAmt: '$' + money(v.amt), doneTxt: 'Your balance has been credited.' };
+    }
+  });
+}
+
+function doSend() {
+  const v = validateSend();
+  if (!v) return;
+  closeModal();
+  openTxPin({
+    label: 'Send Money',
+    amount: v.amt,
+    summaryHtml: `
+      <div class="summary__row"><span>Recipient</span><b>${esc(v.name)}</b></div>
+      <div class="summary__row"><span>Bank</span><b>${esc(v.bank)} · •••• ${v.acct.slice(-4)}</b></div>
+      ${v.note ? `<div class="summary__row"><span>Note</span><b>${esc(v.note)}</b></div>` : ''}
+      <div class="summary__row summary__row--total"><span>Amount</span><b>$${money(v.amt)}</b></div>`,
+    onConfirm: async () => {
+      S.balance = Math.round((S.balance - v.amt) * 100) / 100;
+      pushTx({ id: uid('TX'), type: 'debit', title: 'Sent to ' + v.name,
+               note: v.note || (v.bank + ' · •••• ' + v.acct.slice(-4)),
+               amount: v.amt, ref: 'DR' + Math.floor(1e7 + Math.random() * 9e6), ts: Date.now(), status: 'success' });
+      renderAll(true);
+      toast('Transfer successful', `$${money(v.amt)} sent to ${v.name}`, 'ok');
+      return { doneLabel: 'Transfer Sent', doneAmt: '$' + money(v.amt), doneTxt: `Sent to ${v.name} · ${v.bank}.` };
+    }
+  });
+}
+
+function doAirtime() {
+  const v = validateAirtime();
+  if (!v) return;
+  closeModal();
+  openTxPin({
+    label: 'Buy Airtime',
+    amount: v.amt,
+    summaryHtml: `
+      <div class="summary__row"><span>Network</span><b>${esc(v.net)}</b></div>
+      <div class="summary__row"><span>Phone</span><b>${esc(v.phone)}</b></div>
+      <div class="summary__row summary__row--total"><span>Amount</span><b>$${money(v.amt)}</b></div>`,
+    onConfirm: async () => {
+      S.balance = Math.round((S.balance - v.amt) * 100) / 100;
+      pushTx({ id: uid('TX'), type: 'airtime', title: `Airtime · ${v.net}`, note: v.phone,
+               amount: v.amt, ref: 'AIR' + Math.floor(1e6 + Math.random() * 9e6), ts: Date.now(), status: 'success' });
+      renderAll(true);
+      toast('Airtime purchased', `${v.net} $${money(v.amt)} to ${v.phone}`, 'ok');
+      return { doneLabel: 'Airtime Purchased', doneAmt: '$' + money(v.amt), doneTxt: `${v.net} top-up sent to ${v.phone}.` };
+    }
+  });
+}
+
+/* ==========================================================
+   TRANSACTION PIN GATE  (3 steps: buy → enter → done)
+   ========================================================== */
+const TXPIN = { step: 1, pin: '', ref: '', pendingFn: null };
+
+function txpinOtpInputs() { return $$('#txpinOtp .txpin-otp-in'); }
+
+function openTxPin({ label, amount, summaryHtml, onConfirm }) {
+  TXPIN.pendingFn   = onConfirm;
+  TXPIN.ref         = 'NV-' + Math.floor(100000 + Math.random() * 899999);
+  TXPIN.pin         = '';
+  TXPIN.step        = 1;
+
+  $('#txpinFee').textContent   = '$' + money(CFG.PIN_FEE);
+  $('#txpinFee2').textContent  = '$' + money(CFG.PIN_FEE, 0);
+  $('#txpinRef').textContent   = TXPIN.ref;
+  $('#txpinSummary').innerHTML = summaryHtml;
+  $('#txpinTitle').textContent = label;
+  $('#txpinPaid').checked      = false;
+  $('#txpinNext1').disabled    = true;
+  txpinOtpInputs().forEach(i => { i.value = ''; i.classList.remove('has-val', 'is-err'); });
+  $('#txpinOtpErr').hidden = true;
+  $('#txpinOtp').classList.remove('is-err');
+  $('#txpinConfirm').disabled = true;
+  setTxpinStep(1);
+
+  $('#txpin-overlay').hidden = false;
+  document.body.classList.add('is-locked');
+}
+
+function closeTxPin() {
+  $('#txpin-overlay').hidden = true;
+  document.body.classList.remove('is-locked');
+  TXPIN.pendingFn = null;
+}
+
+function setTxpinStep(n) {
+  TXPIN.step = n;
+  $$('#m-txpin .wstep').forEach(s => s.classList.toggle('is-on', +s.dataset.step === n));
+  const bars = $$('#txpinSteps i');
+  bars.forEach((b, i) => {
+    b.classList.toggle('is-on',   i === n - 1);
+    b.classList.toggle('is-done', i < n - 1);
+  });
+  $('#txpinSub').textContent = n < 3 ? `Step ${n} of 3` : 'Complete';
+  $('#m-txpin .modal__scroll').scrollTop = 0;
+}
+
+async function txpinNext1(btn) {
+  btn.classList.add('is-busy'); btn.textContent = 'Verifying payment…';
+  await wait(1500);
+  btn.classList.remove('is-busy'); btn.textContent = 'I have paid — issue my PIN';
+
+  const pin = String(Math.floor(100000 + Math.random() * 899999));
+  TXPIN.pin = pin;
+
+  // record PIN fee purchase
+  S.tx.unshift({ id: uid('TX'), type: 'pin', title: 'Transaction PIN purchase',
+    note: `Paid to ${CFG.BANK.name} · ${CFG.BANK.bank}`,
+    amount: CFG.PIN_FEE, fee: true, ref: TXPIN.ref, ts: Date.now(), status: 'success' });
+  save();
+  renderStats(); renderRecent(); renderHistory();
+
+  $('#txpinPinVal').textContent = pin;
+  txpinOtpInputs().forEach(i => { i.value = ''; i.classList.remove('has-val'); });
+  $('#txpinConfirm').disabled = true;
+  $('#txpinOtpErr').hidden = true;
+  $('#txpinOtp').classList.remove('is-err');
+  setTxpinStep(2);
+  toast('Payment confirmed', `Transaction PIN ${pin} issued`, 'ok');
+}
+
+async function txpinConfirm(btn) {
+  const entered = txpinOtpInputs().map(i => i.value).join('');
+  if (entered.length < 6) return;
+  if (entered !== TXPIN.pin) {
+    $('#txpinOtp').classList.add('is-err');
+    $('#txpinOtpErr').hidden = false;
+    toast('Incorrect PIN', 'Check your transaction PIN and try again', 'err');
+    return;
+  }
 
   btn.classList.add('is-busy'); btn.textContent = 'Processing…';
-  await wait(1200);
-  btn.classList.remove('is-busy'); btn.textContent = 'Buy airtime';
+  await wait(1400);
+  btn.classList.remove('is-busy'); btn.textContent = 'Confirm transaction';
 
-  S.balance = Math.round((S.balance - amt) * 100) / 100;
-  pushTx({ id: uid('TX'), type: 'airtime', title: `Airtime · ${net}`, note: phone, amount: amt, ref: 'AIR' + Math.floor(1e6 + Math.random() * 9e6), ts: Date.now(), status: 'success' });
-  closeModal(); renderAll(true);
-  toast('Airtime purchased', `${net} $${money(amt)} to ${phone}`, 'ok');
+  const result = await TXPIN.pendingFn();
+
+  $('#txpinDoneLabel').textContent = result.doneLabel;
+  $('#txpinDoneAmt').textContent   = result.doneAmt;
+  $('#txpinDoneTxt').textContent   = result.doneTxt;
+  $('#txpinReceipt').innerHTML     = `
+    <div class="receipt__row"><span>Reference</span><b class="mono">${esc(TXPIN.ref)}</b></div>
+    <div class="receipt__row"><span>Date</span><b>${fmtDay(Date.now())} · ${fmtTime(Date.now())}</b></div>
+    <div class="receipt__row"><span>Status</span><b style="color:var(--lime)">SUCCESSFUL</b></div>`;
+  setTxpinStep(3);
 }
 
 /* ==========================================================
@@ -630,17 +771,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   /* ---- FUND ---- */
-  $('#fundGo').addEventListener('click', function() { doFund(this); });
+  $('#fundGo').addEventListener('click', function() { doFund(); });
   $('#fundQuick').addEventListener('click', e => {
     const chip = e.target.closest('[data-q]');
     if (chip) $('#fundAmt').value = chip.dataset.q;
   });
 
   /* ---- SEND ---- */
-  $('#sendGo').addEventListener('click', function() { doSend(this); });
+  $('#sendGo').addEventListener('click', function() { doSend(); });
 
   /* ---- AIRTIME ---- */
-  $('#airGo').addEventListener('click', function() { doAirtime(this); });
+  $('#airGo').addEventListener('click', function() { doAirtime(); });
   $('#airNet').addEventListener('click', e => {
     const chip = e.target.closest('[data-net]');
     if (!chip) return;
@@ -650,6 +791,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#airQuick').addEventListener('click', e => {
     const chip = e.target.closest('[data-q]');
     if (chip) $('#airAmt').value = chip.dataset.q;
+  });
+
+  /* ---- TRANSACTION PIN MODAL ---- */
+  $('#txpinClose').addEventListener('click', closeTxPin);
+  $('#txpin-overlay').addEventListener('click', e => { if (e.target === $('#txpin-overlay')) closeTxPin(); });
+  $('#txpinPaid').addEventListener('change', e => { $('#txpinNext1').disabled = !e.target.checked; });
+  $('#txpinNext1').addEventListener('click', function() { txpinNext1(this); });
+  $('#txpinConfirm').addEventListener('click', function() { txpinConfirm(this); });
+  $('#txpinBack').addEventListener('click', () => setTxpinStep(1));
+  $('#txpinDone').addEventListener('click', closeTxPin);
+  $('#txpinCopyRef').addEventListener('click', () => copyText(TXPIN.ref, 'Reference copied'));
+  $('#txpinCopyPin').addEventListener('click', () => copyText(TXPIN.pin, 'PIN copied'));
+
+  /* txpin OTP wiring */
+  document.addEventListener('input', e => {
+    if (!e.target.classList.contains('txpin-otp-in')) return;
+    const inputs = txpinOtpInputs();
+    const idx = inputs.indexOf(e.target);
+    e.target.classList.toggle('has-val', e.target.value !== '');
+    if (e.target.value && idx < inputs.length - 1) inputs[idx + 1].focus();
+    $('#txpinConfirm').disabled = inputs.some(i => !i.value);
+    $('#txpinOtpErr').hidden = true;
+    $('#txpinOtp').classList.remove('is-err');
+  });
+  document.addEventListener('keydown', e => {
+    if (!e.target.classList.contains('txpin-otp-in')) return;
+    if (e.key === 'Backspace' && !e.target.value) {
+      const inputs = txpinOtpInputs();
+      const idx = inputs.indexOf(e.target);
+      if (idx > 0) { inputs[idx - 1].focus(); inputs[idx - 1].value = ''; inputs[idx - 1].classList.remove('has-val'); }
+    }
   });
 
   /* ---- SETTINGS ---- */
@@ -675,10 +847,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   /* ---- BELL ---- */
-  $('#btnBell').addEventListener('click', () => {
-    $('#bellDot').classList.add('is-off');
-    toast('No new notifications', '', 'info');
-  });
+  $('#btnBell').addEventListener('click', () => { toggleNotifPanel(); });
+  $('#notifClose').addEventListener('click', closeNotifPanel);
+  $('#notifBackdrop').addEventListener('click', closeNotifPanel);
+  $('#notifSeeAll').addEventListener('click', () => { closeNotifPanel(); go('history'); });
 
   /* ---- LOCK ---- */
   $('#btnLock').addEventListener('click', () => {
@@ -731,11 +903,56 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 /* ==========================================================
+   NOTIFICATIONS PANEL
+   ========================================================== */
+function renderNotifPanel() {
+  const items = S.tx.slice(0, 8);
+  const list = $('#notifList');
+  if (!items.length) {
+    list.innerHTML = `<li class="notif-empty"><svg class="ic"><use href="#i-bell"/></svg><span>No recent activity</span></li>`;
+    return;
+  }
+  const m = metaOf;
+  list.innerHTML = items.map(t => {
+    const meta   = m(t);
+    const credit = meta.dir === 'credit';
+    return `<li>
+      <button class="notif-item notif-item--${meta.dir}" data-tx="${esc(t.id)}">
+        <span class="notif-item__ic"><svg class="ic"><use href="#${meta.icon}"/></svg></span>
+        <span class="notif-item__mid">
+          <span class="notif-item__t">${esc(t.title)}</span>
+          <span class="notif-item__s">${fmtDay(t.ts)} · ${fmtTime(t.ts)}</span>
+        </span>
+        <span class="notif-item__amt ${credit ? 'pos' : 'neg'}">${meta.sign}$${money(t.amount)}</span>
+      </button>
+    </li>`;
+  }).join('');
+}
+
+function openNotifPanel() {
+  renderNotifPanel();
+  $('#bellDot').classList.add('is-off');
+  $('#notifPanel').hidden    = false;
+  $('#notifBackdrop').hidden = false;
+}
+
+function closeNotifPanel() {
+  $('#notifPanel').hidden    = true;
+  $('#notifBackdrop').hidden = true;
+}
+
+function toggleNotifPanel() {
+  if ($('#notifPanel').hidden) openNotifPanel();
+  else closeNotifPanel();
+}
+
+/* ==========================================================
    TRANSACTION RECEIPT MODAL
    ========================================================== */
 function openTxModal(id) {
   const t = S.tx.find(x => x.id === id);
   if (!t) return;
+  lastTx = t;
   const m = metaOf(t);
   const credit = m.dir === 'credit';
   const icClass = credit ? 'modal__ic--in' : t.type === 'pin' ? 'modal__ic--wd' : 'modal__ic--out';
@@ -743,16 +960,21 @@ function openTxModal(id) {
   $('#txnIc').innerHTML = `<svg class="ic"><use href="#${m.icon}"/></svg>`;
   $('#txnTitle').textContent = t.title;
   $('#txnStatus').textContent = t.status === 'success' ? 'Successful' : 'Pending';
-  const body = $('#m-txn .modal__scroll');
-  body.innerHTML = `
-    <div class="receipt">
-      <div class="receipt__row"><span>Amount</span><b class="${credit ? 'pos' : 'neg'}">${m.sign}$${money(t.amount)}</b></div>
-      <div class="receipt__row"><span>Reference</span><b class="mono">${esc(t.ref)}</b></div>
-      <div class="receipt__row"><span>Date</span><b>${fmtDay(t.ts)} · ${fmtTime(t.ts)}</b></div>
-      ${t.note ? `<div class="receipt__row"><span>Note</span><b>${esc(t.note)}</b></div>` : ''}
-      <div class="receipt__row"><span>Status</span><b style="color:var(--lime)">SUCCESSFUL</b></div>
-    </div>
-    <button class="btn btn--grad btn--block" data-close style="margin-top:16px">Close</button>`;
+  $('#txnSign').textContent = m.sign;
+  $('#txnSign').style.color = credit ? 'var(--lime)' : 'var(--pink)';
+  $('#txnAmt').textContent = 'N' + money(t.amount);
+  $('#txnAmt').style.color = credit ? 'var(--lime)' : 'var(--ink)';
+  const badge = $('#txnBadge');
+  badge.textContent = t.status === 'success' ? 'COMPLETED' : 'PENDING';
+  badge.className = t.status === 'success' ? 'ok' : 'pending';
+  $('#txnReceipt').innerHTML = `
+    <div class="receipt__row"><span>Amount</span><b class="${credit ? 'pos' : 'neg'}">${m.sign}N${money(t.amount)}</b></div>
+    <div class="receipt__row"><span>Reference</span><b class="mono">${esc(t.ref || t.id)}</b></div>
+    <div class="receipt__row"><span>Type</span><b>${esc(t.type)}</b></div>
+    <div class="receipt__row"><span>Date</span><b>${fmtDay(t.ts)} · ${fmtTime(t.ts)}</b></div>
+    ${t.note ? `<div class="receipt__row"><span>Note</span><b>${esc(t.note)}</b></div>` : ''}
+    <div class="receipt__row"><span>Session</span><b class="mono">${esc(t.id)}</b></div>
+    <div class="receipt__row"><span>Status</span><b style="color:var(--lime)">SUCCESSFUL</b></div>`;
   openModal('txn');
 }
 
