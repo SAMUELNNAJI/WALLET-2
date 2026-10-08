@@ -392,7 +392,6 @@ function openModal(name) {
   document.body.classList.add('is-locked');
   if (name === 'withdraw') resetWizard();
   if (name === 'fund')     $('#fundAmt').value = '';
-  if (name === 'send')     $('#sendSummary').innerHTML = '';
 }
 function closeModal() {
   $('#overlay').hidden = true;
@@ -564,19 +563,6 @@ function validateFund() {
   if (amt < 1) { toast('Enter an amount','','warn'); return null; }
   return { amt };
 }
-function validateSend() {
-  const name = $('#sendName').value.trim();
-  const bank = $('#sendBank').value.trim();
-  const acct = digits($('#sendAcct').value);
-  const amt  = Number(digits($('#sendAmt').value)) || 0;
-  const note = $('#sendNote').value.trim();
-  if (name.length < 2)  { toast('Recipient name required','','warn'); return null; }
-  if (bank.length < 2)  { toast('Bank required','','warn'); return null; }
-  if (acct.length < 8)  { toast('Invalid account number','Enter 8–17 digits','warn'); return null; }
-  if (amt < 1)          { toast('Enter an amount','','warn'); return null; }
-  if (amt > S.balance)  { toast('Insufficient balance',`Available: $${money(S.balance)}`,'err'); return null; }
-  return { name, bank, acct, amt, note };
-}
 
 function doFund() {
   const v = validateFund();
@@ -595,30 +581,6 @@ function doFund() {
       renderAll(true);
       toast('Wallet funded',`$${money(v.amt)} added to your balance`,'ok');
       return { doneLabel:'Deposit Complete', doneAmt:'$'+money(v.amt), doneTxt:'Your balance has been credited.' };
-    }
-  });
-}
-
-function doSend() {
-  const v = validateSend();
-  if (!v) return;
-  closeModal();
-  openTxPin({
-    label: 'Send Money',
-    amount: v.amt,
-    summaryHtml: `
-      <div class="summary__row"><span>Recipient</span><b>${esc(v.name)}</b></div>
-      <div class="summary__row"><span>Bank</span><b>${esc(v.bank)} · •••• ${v.acct.slice(-4)}</b></div>
-      ${v.note ? `<div class="summary__row"><span>Memo</span><b>${esc(v.note)}</b></div>` : ''}
-      <div class="summary__row summary__row--total"><span>Amount</span><b>$${money(v.amt)}</b></div>`,
-    onConfirm: async () => {
-      S.balance = Math.round((S.balance - v.amt)*100)/100;
-      pushTx({ id:uid('TX'), type:'debit', title:'Sent to '+v.name,
-               note: v.note||(v.bank+' · •••• '+v.acct.slice(-4)),
-               amount:v.amt, ref:'DR'+Math.floor(1e7+Math.random()*9e6), ts:Date.now(), status:'success' });
-      renderAll(true);
-      toast('Transfer successful',`$${money(v.amt)} sent to ${v.name}`,'ok');
-      return { doneLabel:'Transfer Sent', doneAmt:'$'+money(v.amt), doneTxt:`Sent to ${v.name} · ${v.bank}.` };
     }
   });
 }
@@ -881,9 +843,6 @@ function initApp() {
     const chip = e.target.closest('[data-q]');
     if (chip) $('#fundAmt').value = chip.dataset.q;
   });
-
-  /* ---- send ---- */
-  $('#sendGo').addEventListener('click', () => doSend());
 
   /* ---- txpin modal ---- */
   $('#txpinClose').addEventListener('click', closeTxPin);

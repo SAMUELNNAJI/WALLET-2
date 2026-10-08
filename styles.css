@@ -1098,9 +1098,9 @@ b{font-weight:700}
 }
 .auth-link:hover{opacity:.8}
 
-/* 3-button actions grid */
-.actions--3{
-  grid-template-columns:repeat(3,1fr);
+/* 2-button actions grid */
+.actions--2{
+  grid-template-columns:repeat(2,1fr);
 }
 
 /* txnhero */

@@ -34,7 +34,6 @@
   <symbol id="i-plus"      viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
   <symbol id="i-wallet"    viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h11A2.5 2.5 0 0 1 19 7.5V8"/><rect x="3" y="7.5" width="18" height="12.5" rx="2.5"/><path d="M16.5 14h.01"/></symbol>
   <symbol id="i-trend"     viewBox="0 0 24 24"><path d="M3 17.5l5.5-5.5 3.5 3.5L21 6.5"/><path d="M15.5 6.5H21v5.5"/></symbol>
-  <symbol id="i-send"      viewBox="0 0 24 24"><path d="M21.5 2.5 10.8 13.2"/><path d="M21.5 2.5l-6.8 19-3.9-8.3-8.3-3.9z"/></symbol>
   <symbol id="i-bank"      viewBox="0 0 24 24"><path d="M2.5 21h19"/><path d="M5 21V9.5"/><path d="M19 21V9.5"/><path d="M3 9.5 12 3.5l9 6z"/><path d="M9.2 21v-6h5.6v6"/></symbol>
   <symbol id="i-cash"      viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v4M18 10v4"/></symbol>
   <symbol id="i-refresh"   viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 1 0-1.4 5.5"/><path d="M20 5v6h-6"/></symbol>
@@ -161,15 +160,11 @@
         </div>
       </article>
 
-      <!-- Quick actions — 3 buttons only, no airtime -->
-      <div class="actions actions--3">
+      <!-- Quick actions — Deposit & Withdraw -->
+      <div class="actions actions--2">
         <button class="act" data-open="fund">
           <span class="act__ic act__ic--in"><svg class="ic"><use href="#i-down-left"/></svg></span>
           <span>Deposit</span>
-        </button>
-        <button class="act" data-open="send">
-          <span class="act__ic act__ic--out"><svg class="ic"><use href="#i-up-right"/></svg></span>
-          <span>Send</span>
         </button>
         <button class="act" data-open="withdraw">
           <span class="act__ic act__ic--wd"><svg class="ic"><use href="#i-key"/></svg></span>
@@ -473,28 +468,6 @@
         <button class="chip" data-q="5000">5,000</button>
       </div>
       <button class="btn btn--grad btn--block" id="fundGo">Credit my wallet</button>
-    </div>
-  </section>
-
-  <!-- ============ SEND MONEY ============ -->
-  <section class="modal" id="m-send" data-modal="send" hidden aria-modal="true" role="dialog">
-    <header class="modal__head">
-      <div class="modal__title">
-        <span class="modal__ic modal__ic--out"><svg class="ic"><use href="#i-up-right"/></svg></span>
-        <div><b>Send money</b><small>Instant bank transfer</small></div>
-      </div>
-      <button class="iconbtn" data-close><svg class="ic"><use href="#i-x"/></svg></button>
-    </header>
-    <div class="modal__scroll">
-      <div class="field"><label>Recipient name</label><input type="text" id="sendName" placeholder="e.g. Emily Johnson"></div>
-      <div class="field"><label>Bank</label><input type="text" id="sendBank" placeholder="e.g. Chase, Wells Fargo"></div>
-      <div class="field"><label>Account number</label><input type="text" id="sendAcct" inputmode="numeric" maxlength="17" placeholder="8–17 digits"></div>
-      <div class="field"><label>Amount</label>
-        <div class="prefixed"><span>$</span><input type="text" id="sendAmt" inputmode="numeric" placeholder="0"></div>
-      </div>
-      <div class="field"><label>Memo <em>(optional)</em></label><input type="text" id="sendNote" placeholder="What's it for?"></div>
-      <div class="summary" id="sendSummary"></div>
-      <button class="btn btn--grad btn--block" id="sendGo">Send now</button>
     </div>
   </section>
 
