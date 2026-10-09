@@ -28,37 +28,57 @@ globalThis.cancelAnimationFrame = () => {};
 const harness = `
 ;globalThis.__results = (function () {
   const out = {};
+  const countOpening = () => S.tx.filter(t => t.opening).length;
 
-  // 1. Existing account with OLD demo history -> load() must wipe it once
+  // 1. Legacy account with OLD demo history -> replaced by EXACTLY the opening deposit
   localStorage.setItem(CFG.STORE, JSON.stringify({
     profile: { name: 'Old User', email: 'old@x.com', walletId: '4000000001', pin: '1234' },
     balance: 129000, balanceHidden: false, pendingPin: null,
     tx: [{ id:'TX-OLD', type:'credit', title:'Direct Deposit — Acme Corp', amount:5000, ts:Date.now(), ref:'CR1', status:'success' }]
   }));
   load();
-  out.oldStateWiped       = Array.isArray(S.tx) && S.tx.length === 0 && S.txWiped === true;
+  out.legacyGetsOnlyOpening =
+    S.tx.length === 1 && S.tx[0].opening === true && S.tx[0].amount === 129000 &&
+    S.tx[0].title === 'Initial deposit' && S.txWiped === true;
 
-  // 2. User makes a real transaction -> survives subsequent loads
+  // 2. User makes a real transaction -> recorded and survives reloads
   S.tx.unshift({ id:'TX-NEW', type:'credit', title:'Wallet deposit', amount:100, ts:Date.now(), ref:'CR2', status:'success' });
-  save();
-  load();
-  out.realTxPreserved     = S.tx.length === 1 && S.tx[0].id === 'TX-NEW';
+  save(); load();
+  out.realTxPreserved = S.tx.length === 2 && S.tx.some(t => t.id === 'TX-NEW') && countOpening() === 1;
 
-  // 3. New signup seed -> no history / recent activity at all
+  // 3. New signup seed -> exactly 1 history entry: the $129,000 opening deposit
   const seed = seedForUser({ name: 'New User', email: 'new@x.com', walletId: '4000000002' });
-  out.newSeedEmpty        = seed.tx.length === 0 && seed.txWiped === true && seed.balance === 129000;
+  out.newSeedOneOpening =
+    seed.tx.length === 1 && seed.tx[0].opening === true &&
+    seed.tx[0].amount === 129000 && seed.balance === 129000 && seed.txWiped === true;
 
-  // 4. Simulated fresh signup flow (doSignUp storage behavior)
+  // 4. Fresh signup flow (doSignUp storage behavior) -> stays at exactly one entry
   localStorage.removeItem(CFG.STORE);
   S = seedForUser({ name: 'Fresh', email: 'fresh@x.com', walletId: '4000000003' });
-  save();
-  load();
-  out.signupStaysEmpty    = S.tx.length === 0 && S.txWiped === true;
+  save(); load();
+  out.signupStaysOneEntry = S.tx.length === 1 && S.tx[0].opening === true;
 
-  // 5. Double load is idempotent (flag prevents re-wipe of real history)
+  // 5. Repeated loads never duplicate the opening deposit
   S.tx.unshift({ id:'TX-3', type:'debit', title:'Withdrawal to Chase', amount:50, ts:Date.now(), ref:'WD1', status:'success' });
   save(); load(); load();
-  out.noDoubleWipe        = S.tx.length === 1;
+  out.noDuplicateOpening = S.tx.length === 2 && countOpening() === 1;
+
+  // 6. State already emptied by previous empty-history version -> opening deposit backfilled
+  localStorage.setItem(CFG.STORE, JSON.stringify({
+    profile: { name: 'Wiped', email: 'w@x.com', walletId: '4000000004', pin: '1234' },
+    balance: 129000, tx: [], txWiped: true
+  }));
+  load();
+  out.wipedStateBackfilled = S.tx.length === 1 && S.tx[0].opening === true && S.tx[0].amount === 129000;
+
+  // 7. Previously wiped state that already has real history -> opening prepended once, real tx kept
+  localStorage.setItem(CFG.STORE, JSON.stringify({
+    profile: { name: 'Active', email: 'a@x.com', walletId: '4000000005', pin: '1234' },
+    balance: 128950, tx: [{ id:'TX-R', type:'debit', title:'Withdrawal to Chase', amount:50, ts:Date.now(), ref:'WD9', status:'success' }], txWiped: true
+  }));
+  load();
+  out.activeStateBackfilled =
+    S.tx.length === 2 && S.tx[0].opening === true && S.tx.some(t => t.id === 'TX-R') && countOpening() === 1;
 
   return out;
 })();
@@ -66,7 +86,8 @@ const harness = `
 const results = (0, eval)(src + harness);
 console.log(JSON.stringify(results, null, 2));
 
-const pass = results.oldStateWiped && results.realTxPreserved && results.newSeedEmpty
-          && results.signupStaysEmpty && results.noDoubleWipe;
+const pass = results.legacyGetsOnlyOpening && results.realTxPreserved && results.newSeedOneOpening
+          && results.signupStaysOneEntry && results.noDuplicateOpening
+          && results.wipedStateBackfilled && results.activeStateBackfilled;
 console.log(pass ? 'ALL TESTS PASSED' : 'TESTS FAILED');
 process.exit(pass ? 0 : 1);

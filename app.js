@@ -135,6 +135,19 @@ function doSignIn() {
 /* ==========================================================
    STATE
    ========================================================== */
+const OPENING_BALANCE = 129000;
+
+/* The single history entry every account starts with — it shows how the
+   starting balance entered the wallet. Further entries are recorded
+   only as the user makes transactions. */
+function openingDeposit() {
+  return {
+    id: uid('TX'), type:'credit', title:'Initial deposit', note:'Account opening balance',
+    opening: true, amount: OPENING_BALANCE, ts: Date.now(),
+    ref:'CR'+Math.floor(1e7+Math.random()*9e6), status:'success'
+  };
+}
+
 function seedForUser(user) {
   const wId = user ? user.walletId : '4000000000';
   const uName = user ? user.name : 'Nova User';
@@ -149,11 +162,12 @@ function seedForUser(user) {
       cardExp:    '08/29',
       cardFrozen: false
     },
-    balance:       129000.00,
+    balance:       OPENING_BALANCE,
     balanceHidden: false,
     pendingPin:    null,
-    // no history / recent activity — entries are recorded only as the user makes transactions
-    tx: [],
+    // exactly one history entry: the opening deposit — everything else
+    // is recorded only as the user makes transactions
+    tx: [openingDeposit()],
     txWiped: true
   };
 }
@@ -166,10 +180,15 @@ function load() {
     const u = currentUser();
     if (!S || !S.profile || !Array.isArray(S.tx)) S = seedForUser(u);
   } catch { S = seedForUser(currentUser()); }
-  // one-time cleanup: remove all previously stored (demo) history & recent activity.
-  // runs only on states saved before this flag existed; transactions recorded
-  // afterwards are kept and new transactions are recorded as the user makes them.
-  if (S && !S.txWiped) { S.tx = []; S.txWiped = true; save(); }
+  // history cleanup — every account must have exactly one entry showing how
+  // the starting balance entered the wallet, and nothing else pre-seeded:
+  // 1) legacy states still holding demo transactions → replace all with the opening deposit
+  // 2) states already emptied by the previous version → backfill the opening deposit once
+  // transactions recorded by the user are never removed (guarded by the `opening` marker).
+  if (S && !S.txWiped) { S.tx = [openingDeposit()]; S.txWiped = true; save(); }
+  else if (S && Array.isArray(S.tx) && !S.tx.some(t => t.opening)) {
+    S.tx.unshift(openingDeposit()); save();
+  }
 }
 function save() { try { localStorage.setItem(CFG.STORE, JSON.stringify(S)); } catch {} }
 
