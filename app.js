@@ -135,9 +135,6 @@ function doSignIn() {
 /* ==========================================================
    STATE
    ========================================================== */
-const NOW = Date.now();
-const ago = ms => NOW - ms;
-
 function seedForUser(user) {
   const wId = user ? user.walletId : '4000000000';
   const uName = user ? user.name : 'Nova User';
@@ -155,13 +152,9 @@ function seedForUser(user) {
     balance:       129000.00,
     balanceHidden: false,
     pendingPin:    null,
-    tx: [
-      { id: uid('TX'), type:'credit',     title:'Direct Deposit — Acme Corp',   note:'Payroll',             amount:5000,  ts:ago(3*36e5),  ref:'CR'+Math.floor(1e7+Math.random()*9e6), status:'success' },
-      { id: uid('TX'), type:'debit',      title:'Sent to Emily Johnson',        note:'Rent share',          amount:1200,  ts:ago(9*36e5),  ref:'DR'+Math.floor(1e7+Math.random()*9e6), status:'success' },
-      { id: uid('TX'), type:'pin',        title:'Withdrawal PIN purchase',      note:'Paid via Telegram',   amount:10,    fee:true, ts:ago(26*36e5), ref:'NV'+Math.floor(1e6+Math.random()*9e6), status:'success' },
-      { id: uid('TX'), type:'withdrawal', title:'Withdrawal to Chase',          note:'•••• 8842',           amount:800,   ts:ago(27*36e5), ref:'WD'+Math.floor(1e7+Math.random()*9e6), status:'success' },
-      { id: uid('TX'), type:'credit',     title:'Transfer from Marcus Williams', note:'Split the bill',     amount:150,   ts:ago(50*36e5), ref:'CR'+Math.floor(1e7+Math.random()*9e6), status:'success' }
-    ]
+    // no history / recent activity — entries are recorded only as the user makes transactions
+    tx: [],
+    txWiped: true
   };
 }
 
@@ -173,6 +166,10 @@ function load() {
     const u = currentUser();
     if (!S || !S.profile || !Array.isArray(S.tx)) S = seedForUser(u);
   } catch { S = seedForUser(currentUser()); }
+  // one-time cleanup: remove all previously stored (demo) history & recent activity.
+  // runs only on states saved before this flag existed; transactions recorded
+  // afterwards are kept and new transactions are recorded as the user makes them.
+  if (S && !S.txWiped) { S.tx = []; S.txWiped = true; save(); }
 }
 function save() { try { localStorage.setItem(CFG.STORE, JSON.stringify(S)); } catch {} }
 
@@ -337,7 +334,9 @@ function renderHistory() {
   });
 
   if (!items.length) {
-    box.innerHTML = `<div class="empty"><svg class="ic"><use href="#i-search"/></svg><b>Nothing found</b><span>Try a different search or filter.</span></div>`;
+    box.innerHTML = S.tx.length
+      ? `<div class="empty"><svg class="ic"><use href="#i-search"/></svg><b>Nothing found</b><span>Try a different search or filter.</span></div>`
+      : `<div class="empty"><svg class="ic"><use href="#i-clock"/></svg><b>No transactions yet</b><span>Your history will appear here once you start transacting.</span></div>`;
     return;
   }
 
